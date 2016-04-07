@@ -1,7 +1,9 @@
-#ifndef TCD_DATA_H
-#define TCD_DATA_H
+#ifndef TCD_H
+#define TCD_H
 
 #include <stdint.h>
+
+/* ----- Info ----- */
 
 struct TcdLine {
 	uint32_t number;
@@ -63,14 +65,6 @@ union TcdType {
 };
 typedef union TcdType TcdType;
 
-struct TcdBreakpoint {
-	uint64_t address;
-	TcdFunction *func;
-	uint32_t line;
-	uint64_t saved;
-};
-typedef struct TcdBreakpoint TcdBreakpoint;
-
 struct TcdCompUnit {
 	char *name;
 	char *compDir;
@@ -89,6 +83,23 @@ struct TcdInfo {
 };
 typedef struct TcdInfo TcdInfo;
 
+int tcdLoadInfo(const char*, TcdInfo*);
+TcdCompUnit *tcdSurroundingCompUnit(TcdInfo*, uint64_t);
+TcdFunction *tcdSurroundingFunction(TcdInfo*, uint64_t);
+TcdFunction *tcdFunctionByName(TcdInfo*, char*);
+TcdLine *tcdNearestLine(TcdFunction*, uint64_t);
+void tcdFreeInfo(TcdInfo*);
+
+/* ----- Context ----- */
+
+struct TcdBreakpoint {
+	uint64_t address;
+	TcdFunction *func;
+	uint32_t line;
+	uint64_t saved;
+};
+typedef struct TcdBreakpoint TcdBreakpoint;
+
 struct TcdContext {
 	int pid;
 	int status;
@@ -98,12 +109,47 @@ struct TcdContext {
 };
 typedef struct TcdContext TcdContext;
 
-int tcdLoadInfo(const char*, TcdInfo*);
-TcdCompUnit *tcdSurroundingCompUnit(TcdInfo*, uint64_t);
-TcdFunction *tcdSurroundingFunction(TcdInfo*, uint64_t);
-TcdFunction *tcdFunctionByName(TcdInfo*, char*);
-TcdLine *tcdNearestLine(TcdFunction*, uint64_t);
-void tcdFreeInfo(TcdInfo*);
 void tcdFreeContext(TcdContext*);
+
+/* ----- Control ----- */
+
+void tcdSync(TcdContext*);
+
+void tcdReadMemory (TcdContext*, uint64_t, uint32_t, void*);
+void tcdWriteMemory(TcdContext*, uint64_t, uint32_t, void*);
+
+uint64_t tcdReadIP(TcdContext*);
+uint64_t tcdReadBP(TcdContext*);
+
+void tcdStepInstruction(TcdContext*);
+uint64_t tcdStep(TcdContext*);
+uint64_t tcdNext(TcdContext*);
+
+/* TODO move into separate / own module? */
+uint16_t tcdGetStackTrace(TcdContext*, uint64_t*, uint16_t);
+
+/* ----- Address ----- */
+
+struct TcdLocDesc {
+	uint8_t *expr;
+	uint64_t baseAddress;
+};
+
+struct TcdRtLoc {
+	uint64_t address;
+	enum {
+		TCDR_ADDRESS,
+		TCDR_REGISTER,
+		TCDR_HOST_TEMP
+	} region;
+};
+
+typedef struct TcdLocDesc TcdLocDesc;
+typedef struct TcdRtLoc   TcdRtLoc;
+
+int tcdInterpretLocation(TcdContext*, TcdLocDesc, TcdRtLoc*);
+
+int tcdDeref     (TcdContext*, TcdType, TcdRtLoc,           TcdType*, TcdRtLoc*);
+int tcdDerefIndex(TcdContext*, TcdType, TcdRtLoc, uint64_t, TcdType*, TcdRtLoc*);
 
 #endif

@@ -1,10 +1,8 @@
-#include "addr.h"
+#include "tcd.h"
 
 #include <stdlib.h>
 #include <stdbool.h>
 #include <libdwarf/dwarf.h>
-
-#include "control.h"
 
 uint64_t decodeUnsignedLeb128(uint8_t **data) {
 	uint64_t result = 0;

@@ -1,6 +1,4 @@
-#include "addr.h"
-#include "data.h"
-#include "control.h"
+#include "tcd.h"
 
 #include <stdlib.h>
 #include <stdio.h>

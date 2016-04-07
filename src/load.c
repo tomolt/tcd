@@ -1,16 +1,14 @@
-#include "data.h"
+#include "tcd.h"
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <stdint.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <libdwarf/dwarf.h>
 #include <libdwarf/libdwarf.h>
 
-// TODO use asserts?
 #define CHECK_DWARF_RESULT(x) if (res == DW_DLV_ERROR) return -1
 
 static int loadLocals(Dwarf_Debug dbg, Dwarf_Die in_die, TcdLocal **out_locals, uint32_t *out_numLocals) {
