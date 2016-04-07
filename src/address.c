@@ -233,10 +233,10 @@ int tcdInterpretLocation(TcdContext *debug, TcdLocDesc desc, TcdRtLoc *rtloc) {
 	return res;
 }
 
-int tcdDeref     (TcdContext *debug, TcdType in_type, TcdRtLoc in_rtloc,           TcdType *out_type, TcdRtLoc *out_rtloc) {
-
+int tcdDeref(TcdContext *debug, TcdType in_type, TcdRtLoc in_rtloc, TcdType *out_type, TcdRtLoc *out_rtloc) {
+	return -1;
 }
 
 int tcdDerefIndex(TcdContext *debug, TcdType in_type, TcdRtLoc in_rtloc, uint64_t index, TcdType *out_type, TcdRtLoc *out_rtloc) {
-
+	return -1;
 }
