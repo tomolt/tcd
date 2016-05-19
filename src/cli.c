@@ -19,50 +19,59 @@ typedef enum {
 	STEP, NEXT,
 	TRACE, WHERE,
 	REGISTERS, LINES, LOCALS, POINTS,
-	DUMP,
+	DUMP, PRINT,
 	INVALID
 } Command;
 
 /* Reads command from user */
-static void getNextCommand(Command *cmd, char **argv) {
+static void getNextCommand(Command *cmd, char *arg1, char *arg2) {
 	char *cmdstr = readline(prompt);
 	if (cmdstr == NULL) return;
-	else if (cmdstr[0] == '\0') {
-	} else if (strcmp(cmdstr, "continue") == 0) {
+	if (cmdstr[0] == '\0') return;
+	char op[128];
+	memset(op, 0, 128);
+	memset(arg1, 0, 128);
+	memset(arg2, 0, 128);
+
+	int i;
+	char *c = cmdstr;
+	for (i = 0; *c != ' ' && *c != '\n' && *c != '\0'; c++)
+		op[i++] = *c;
+	while (*c == ' ') c++;
+	for (i = 0; *c != ' ' && *c != '\n' && *c != '\0'; c++)
+		arg1[i++] = *c;
+	while (*c == ' ') c++;
+	for (i = 0; *c != ' ' && *c != '\n' && *c != '\0'; c++)
+		arg2[i++] = *c;
+
+	if (strcmp(op, "continue") == 0) {
 		*cmd = CONTINUE;
-	} else if (strcmp(cmdstr, "kill") == 0) {
+	} else if (strcmp(op, "kill") == 0) {
 		*cmd = KILL;
-	} else if (strcmp(cmdstr, "step") == 0) {
+	} else if (strcmp(op, "step") == 0) {
 		*cmd = STEP;
-	} else if (strcmp(cmdstr, "next") == 0) {
+	} else if (strcmp(op, "next") == 0) {
 		*cmd = NEXT;
-	} else if (strcmp(cmdstr, "trace") == 0) {
+	} else if (strcmp(op, "trace") == 0) {
 		*cmd = TRACE;
-	} else if (strcmp(cmdstr, "where") == 0) {
+	} else if (strcmp(op, "where") == 0) {
 		*cmd = WHERE;
-	} else if (strcmp(cmdstr, "registers") == 0) {
+	} else if (strcmp(op, "registers") == 0) {
 		*cmd = REGISTERS;
-	} else if (strcmp(cmdstr, "lines") == 0) {
+	} else if (strcmp(op, "lines") == 0) {
 		*cmd = LINES;
-	} else if (strcmp(cmdstr, "locals") == 0) {
+	} else if (strcmp(op, "locals") == 0) {
 		*cmd = LOCALS;
-	} else if (strcmp(cmdstr, "points") == 0) {
+	} else if (strcmp(op, "points") == 0) {
 		*cmd = POINTS;
+	} else if (strcmp(op, "break") == 0) {
+		*cmd = BREAK;
+	} else if (strcmp(op, "dump") == 0) {
+		*cmd = DUMP;
+	} else if (strcmp(op, "print") == 0) {
+		*cmd = PRINT;
 	} else {
-		const char *op = strtok(cmdstr, " ");
-		const char *arg = strtok(NULL, " ");
-		if (!op || !arg) {
-			*cmd = INVALID;
-		} else {
-			*argv = strdup(arg);
-			if (strcmp(op, "break") == 0) {
-				*cmd = BREAK;
-			} else if (strcmp(op, "dump") == 0) {
-				*cmd = DUMP;
-			} else {
-				*cmd = INVALID;
-			}
-		}
+		*cmd = INVALID;
 	}
 	free(cmdstr);
 }
@@ -116,7 +125,7 @@ int main(int argc, char **argv) {
 	sprintf(prompt, "tcd/%d] ", debug.pid);
 
 	Command cmd;
-	char *arg;
+	char arg1[128], arg2[128];
 
 	tcdSync(&debug);
 
@@ -151,7 +160,7 @@ int main(int argc, char **argv) {
 			}
 		}
 
-		getNextCommand(&cmd, &arg);
+		getNextCommand(&cmd, (char*)arg1, (char*)arg2);
 		switch (cmd) {
 			/* Set break point */
 			case BREAK: {
@@ -191,7 +200,7 @@ int main(int argc, char **argv) {
 					}
 				} else
 #endif
-				if (sscanf(arg, "%s", symbol) == 1) {
+				if (sscanf(arg1, "%s", symbol) == 1) {
 					TcdFunction *func = tcdFunctionByName(&debug.info, symbol);
 					if (func != NULL) {
 						address = func->lines[0].address;
@@ -220,7 +229,6 @@ int main(int argc, char **argv) {
 				} else {
 					printf("line %d not found.\n", line);
 				}
-				free(arg);
 			} break;
 
 			/* Step into */
@@ -308,7 +316,7 @@ int main(int argc, char **argv) {
 			/* Dump 8 bytes of data at <arg> in hex */
 			case DUMP: {
 				uint64_t address;
-				sscanf(arg, "%lx", &address); /* TODO Check return value? */
+				sscanf(arg1, "%lx", &address); /* TODO Check return value? */
 				uint8_t bytes[4 * 8];
 				tcdReadMemory(&debug, address, 4 * 8, bytes);
 				for (uint32_t i = 0; i < 4 * 8; ) {
@@ -317,6 +325,42 @@ int main(int argc, char **argv) {
 						printf("\n");
 					}
 				}
+			} break;
+
+			case PRINT: {
+				uint64_t rip = tcdReadIP(&debug);
+				TcdFunction *func = tcdSurroundingFunction(&debug.info, rip);
+				if (func == NULL) break;
+				TcdLocal *local = NULL;
+				for (uint32_t i = 0; i < func->numLocals; i++) {
+					if (strcmp(func->locals[i].name, arg2) == 0) {
+						local = func->locals + i;
+						break;
+					}
+				}
+				if (local == NULL) break;
+
+				TcdLocDesc desc = {local->exprloc, 0};
+				TcdRtLoc rtloc = {0};
+				if (tcdInterpretLocation(&debug, desc, &rtloc) != 0) break;
+
+				if (strcmp(arg1, "str") == 0) {
+					uint8_t string[256];
+					string[255] = 0;
+					tcdReadMemory(&debug, rtloc.address, 255, string);
+					printf("\"%s\"", string);
+				} else if (strcmp(arg1, "i32") == 0) {
+					int32_t data;
+					tcdReadMemory(&debug, rtloc.address, 4, &data);
+					printf("%d", data);
+				} else if (strcmp(arg1, "f32") == 0) {
+					float data;
+					tcdReadMemory(&debug, rtloc.address, 4, &data);
+					printf("%f", data);
+				} else {
+					printf("Unrecognized variable type: '%s'");
+				}
+				printf("\n");
 			} break;
 
 			/* Continue execution */

@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <libdwarf/dwarf.h>
 
-uint64_t decodeUnsignedLeb128(uint8_t **data) {
+static uint64_t decodeUnsignedLeb128(uint8_t **data) {
 	uint64_t result = 0;
 	uint8_t shift = 0;
 	uint8_t byte;
@@ -17,7 +17,7 @@ uint64_t decodeUnsignedLeb128(uint8_t **data) {
 	return result;
 }
 
-int64_t decodeSignedLeb128(uint8_t **data) {
+static int64_t decodeSignedLeb128(uint8_t **data) {
 	int64_t result = 0;
 	uint8_t shift = 0;
 	uint8_t byte;
@@ -33,18 +33,20 @@ int64_t decodeSignedLeb128(uint8_t **data) {
 	return result;
 }
 
+#if 0
 /** Logical right shift **/
-int64_t shrLog(int64_t x, int64_t n) {
+static int64_t shrLog(int64_t x, int64_t n) {
     return (uint64_t)x >> n;
 }
 
 /** Arithmetical right shift **/
-int64_t shrAr(int64_t x, int64_t n) {
+static int64_t shrAr(int64_t x, int64_t n) {
     if (x < 0 && n > 0)
         return x >> n | ~(~0U >> n);
     else
         return x >> n;
 }
+#endif
 
 struct StackElem {
 	int64_t data;
