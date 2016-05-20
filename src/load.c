@@ -128,6 +128,9 @@ int tcdLoadInfo(const char *file, TcdInfo *out_info) {
 			case DW_AT_high_pc:  ATTR_GET_UNSIGNED(cu.end     ); break;
 		)
 		cu.end += cu.begin;
+
+		uint64_t *typeIds = NULL;
+		uint32_t numTypeIds = 0;
 		/* Load all types, functions etc. */
 		HANDLE_SUB_DIES(cu_die,
 			/* Load function */
@@ -158,18 +161,10 @@ int tcdLoadInfo(const char *file, TcdInfo *out_info) {
 								/* dwarf_dealloc(dbg, data, DW_DLA_PTR); */
 							} break;
 							case DW_AT_type: {
-								Dwarf_Off data;
-								res = dwarf_formref(attrs[i], &data, &error);
+								Dwarf_Off typeId;
+								res = dwarf_formref(attrs[i], &typeId, &error);
 								CHECK_DWARF_RESULT(res);
-								Dwarf_Die type;
-								res = dwarf_offdie(dbg, data, &type, &error);
-								CHECK_DWARF_RESULT(res);
-								Dwarf_Half tag;
-								res = dwarf_tag(type, &tag, &error);
-								CHECK_DWARF_RESULT(res);
-								const char *tagname;
-								res = dwarf_get_TAG_name(tag, &tagname);
-								printf("type die tag: %s\n", tagname + 7);
+								local.type = typeId;
 							} break;
 						)
 						ARRAY_PUSH_BACK(func.locals, func.numLocals, local);
@@ -180,12 +175,11 @@ int tcdLoadInfo(const char *file, TcdInfo *out_info) {
 			case DW_TAG_base_type: {
 				TcdType type = {0};
 				type.tclass = TCDT_BASE;
-				/* Fetch die offset / type id */
-				Dwarf_Off offset;
-				res = dwarf_dieoffset(cur_die, &offset, &error);
+				/* Fetch die offset */
+				Dwarf_Off typeId;
+				res = dwarf_dieoffset(cur_die, &typeId, &error);
 				CHECK_DWARF_RESULT(res);
-				type.base.off = offset;
-				/* Iterate trough attributes */
+				/* Load attributes */
 				HANDLE_ATTRIBUTES(cur_die,
 					case DW_AT_name:      ATTR_GET_STRING  (type.base.name); break;
 					case DW_AT_byte_size: ATTR_GET_UNSIGNED(type.base.size); break;
@@ -205,19 +199,26 @@ int tcdLoadInfo(const char *file, TcdInfo *out_info) {
 					} break;
 				)
 				ARRAY_PUSH_BACK(cu.types, cu.numTypes, type);
+				ARRAY_PUSH_BACK(typeIds, numTypeIds, typeId);
 			} break;
 			case DW_TAG_pointer_type: {
 				TcdType type = {0};
 				type.tclass = TCDT_POINTER;
+				/* Fetch type offset */
+				Dwarf_Off typeId;
+				res = dwarf_dieoffset(cur_die, &typeId, &error);
+				CHECK_DWARF_RESULT(res);
+				/* Load attributes */
 				HANDLE_ATTRIBUTES(cur_die,
 					case DW_AT_type: {
-						Dwarf_Off data;
-						res = dwarf_formref(attrs[i], &data, &error);
+						Dwarf_Off to;
+						res = dwarf_formref(attrs[i], &to, &error);
 						CHECK_DWARF_RESULT(res);
-						type.pointer.off = data;
+						type.pointer.to = to;
 					} break;
 				)
 				ARRAY_PUSH_BACK(cu.types, cu.numTypes, type);
+				ARRAY_PUSH_BACK(typeIds, numTypeIds, typeId);
 			} break;
 		)
 		/* Load lines */
@@ -261,6 +262,30 @@ int tcdLoadInfo(const char *file, TcdInfo *out_info) {
 		}
 		/* Deallocate line list */
 		dwarf_dealloc(dbg, dlines, DW_DLA_LIST);
+		/* Replace type offsets / ids by pointers */
+		for (int i = 0; i < cu.numTypes; i++) {
+			switch (cu.types[i].tclass) {
+				case TCDT_POINTER: {
+					uint64_t id = cu.types[i].pointer.to;
+					for (uint64_t k = 0; k < numTypeIds; k++) {
+						if (typeIds[k] == id) {
+							cu.types[i].pointer.to = k;
+						}
+					}
+				} break;
+				default: break;
+			}
+		}
+		for (int i = 0; i < cu.numFuncs; i++) {
+			for (int j = 0; j < cu.funcs[i].numLocals; j++) {
+				uint64_t id = cu.funcs[i].locals[j].type;
+				for (uint64_t k = 0; k < numTypeIds; k++) {
+					if (typeIds[k] == id) {
+						cu.funcs[i].locals[j].type = k;
+					}
+				}
+			}
+		}
 		/* Deallocate compilation unit die */
         dwarf_dealloc(dbg, cu_die, DW_DLA_DIE);
 		/* Add compilation unit to list */

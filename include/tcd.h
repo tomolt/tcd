@@ -14,6 +14,7 @@ typedef struct TcdLine TcdLine;
 struct TcdLocal {
 	char *name;
 	uint8_t *exprloc;
+	uint64_t type;
 };
 typedef struct TcdLocal TcdLocal;
 
@@ -53,12 +54,11 @@ union TcdType {
 	} base;
 	struct {
 		TcdTypeClass tclass;
-		union TcdType *to;
-		uint64_t off;
+		uint64_t to;
 	} pointer;
 	struct {
 		TcdTypeClass tclass;
-		union TcdType *of;
+		uint64_t *of;
 	} array;
 	struct {
 		TcdTypeClass tclass;

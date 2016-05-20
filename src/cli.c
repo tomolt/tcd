@@ -91,6 +91,20 @@ static void printWhere(TcdInfo *info, uint64_t address) {
 	printf(".\n");
 }
 
+static void typeToString(TcdCompUnit *cu, uint64_t type, char *str)
+{
+	switch (cu->types[type].tclass) {
+		case TCDT_BASE:
+			strcpy(str, cu->types[type].base.name);
+			break;
+		case TCDT_POINTER:
+			str[0] = '*';
+			typeToString(cu, cu->types[type].pointer.to, str + 1);
+			break;
+		default: break;
+	}
+}
+
 int main(int argc, char **argv) {
 	if (argc < 2) {
 		fprintf(stderr, "usage: %s <bin>\n", argv[0]);
@@ -305,7 +319,7 @@ int main(int argc, char **argv) {
 								printf("  %s: off=%lu size=%d inter=%d\n", type->base.name, type->base.off, type->base.size, type->base.inter);
 								break;
 							case TCDT_POINTER:
-								printf("  <pointer>: off=%lu\n", type->pointer.off);
+								printf("  <pointer>: to=%lu\n", type->pointer.to);
 								break;
 							default: break;
 						}
@@ -317,15 +331,18 @@ int main(int argc, char **argv) {
 				struct user_regs_struct regs;
 				ptrace(PTRACE_GETREGS, debug.pid, NULL, &regs);
 				uint64_t rip = regs.rip;
+				TcdCompUnit *cu   = tcdSurroundingCompUnit(&debug.info, rip);
 				TcdFunction *func = tcdSurroundingFunction(&debug.info, rip);
 				if (func == NULL) break;
 				for (uint32_t i = 0; i < func->numLocals; i++) {
 					TcdLocal *local = func->locals + i;
+					char type[1024] = {0};
+					typeToString(cu, local->type, type);
 					TcdLocDesc desc = {local->exprloc, 0};
 					TcdRtLoc rtloc = {0};
 					if (tcdInterpretLocation(&debug, desc, &rtloc) != 0)
 						continue;
-					printf("%s 0x%lx\n", local->name, rtloc.address);
+					printf("%s (%s) 0x%lx\n", local->name, type, rtloc.address);
 				}
 			} break;
 
