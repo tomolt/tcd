@@ -3,6 +3,25 @@
 
 #include <stdint.h>
 
+/* ----- Address ----- */
+
+struct TcdLocDesc {
+	uint8_t *expr;
+	uint64_t baseAddress;
+};
+
+struct TcdRtLoc {
+	uint64_t address;
+	enum {
+		TCDR_ADDRESS,
+		TCDR_REGISTER,
+		TCDR_HOST_TEMP
+	} region;
+};
+
+typedef struct TcdLocDesc TcdLocDesc;
+typedef struct TcdRtLoc   TcdRtLoc;
+
 /* ----- Info ----- */
 
 struct TcdLine {
@@ -13,7 +32,7 @@ typedef struct TcdLine TcdLine;
 
 struct TcdLocal {
 	char *name;
-	uint8_t *exprloc;
+	struct TcdLocDesc locdesc;
 	uint64_t type;
 };
 typedef struct TcdLocal TcdLocal;
@@ -58,7 +77,7 @@ union TcdType {
 	} pointer;
 	struct {
 		TcdTypeClass tclass;
-		uint64_t *of;
+		uint64_t of;
 	} array;
 	struct {
 		TcdTypeClass tclass;
@@ -132,24 +151,7 @@ uint64_t tcdNext(TcdContext*);
 /* TODO move into separate / own module? */
 uint16_t tcdGetStackTrace(TcdContext*, uint64_t*, uint16_t);
 
-/* ----- Address ----- */
-
-struct TcdLocDesc {
-	uint8_t *expr;
-	uint64_t baseAddress;
-};
-
-struct TcdRtLoc {
-	uint64_t address;
-	enum {
-		TCDR_ADDRESS,
-		TCDR_REGISTER,
-		TCDR_HOST_TEMP
-	} region;
-};
-
-typedef struct TcdLocDesc TcdLocDesc;
-typedef struct TcdRtLoc   TcdRtLoc;
+/* ----- Address Functions ----- */
 
 int tcdInterpretLocation(TcdContext*, TcdLocDesc, TcdRtLoc*);
 

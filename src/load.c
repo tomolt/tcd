@@ -155,9 +155,9 @@ int tcdLoadInfo(const char *file, TcdInfo *out_info) {
 								Dwarf_Unsigned size;
 								res = dwarf_formexprloc(attrs[i], &size, &data, &error);
 								CHECK_DWARF_RESULT(res);
-								local.exprloc = malloc(size + 1);
-								memcpy(local.exprloc, data, size);
-								local.exprloc[size] = 0;
+								local.locdesc.expr = malloc(size + 1);
+								memcpy(local.locdesc.expr, data, size);
+								local.locdesc.expr[size] = 0;
 								/* dwarf_dealloc(dbg, data, DW_DLA_PTR); */
 							} break;
 							case DW_AT_type: {
@@ -220,6 +220,25 @@ int tcdLoadInfo(const char *file, TcdInfo *out_info) {
 				ARRAY_PUSH_BACK(cu.types, cu.numTypes, type);
 				ARRAY_PUSH_BACK(typeIds, numTypeIds, typeId);
 			} break;
+			case DW_TAG_array_type: {
+				TcdType type = {0};
+				type.tclass = TCDT_ARRAY;
+				/* Fetch type offset */
+				Dwarf_Off typeId;
+				res = dwarf_dieoffset(cur_die, &typeId, &error);
+				CHECK_DWARF_RESULT(res);
+				/* Load attributes */
+				HANDLE_ATTRIBUTES(cur_die,
+					case DW_AT_type: {
+						Dwarf_Off of;
+						res = dwarf_formref(attrs[i], &of, &error);
+						CHECK_DWARF_RESULT(res);
+						type.array.of = of;
+					} break;
+				)
+				ARRAY_PUSH_BACK(cu.types, cu.numTypes, type);
+				ARRAY_PUSH_BACK(typeIds, numTypeIds, typeId);
+			} break;
 		)
 		/* Load lines */
 		TcdFunction *cur_func = cu.funcs;
@@ -270,6 +289,14 @@ int tcdLoadInfo(const char *file, TcdInfo *out_info) {
 					for (uint64_t k = 0; k < numTypeIds; k++) {
 						if (typeIds[k] == id) {
 							cu.types[i].pointer.to = k;
+						}
+					}
+				} break;
+				case TCDT_ARRAY: {
+					uint64_t id = cu.types[i].array.of;
+					for (uint64_t k = 0; k < numTypeIds; k++) {
+						if (typeIds[k] == id) {
+							cu.types[i].array.of = k;
 						}
 					}
 				} break;

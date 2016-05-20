@@ -101,6 +101,11 @@ static void typeToString(TcdCompUnit *cu, uint64_t type, char *str)
 			str[0] = '*';
 			typeToString(cu, cu->types[type].pointer.to, str + 1);
 			break;
+		case TCDT_ARRAY:
+			str[0] = '[';
+			str[1] = ']';
+			typeToString(cu, cu->types[type].array.of, str + 2);
+			break;
 		default: break;
 	}
 }
@@ -328,9 +333,7 @@ int main(int argc, char **argv) {
 			} break;
 
 			case LOCALS: {
-				struct user_regs_struct regs;
-				ptrace(PTRACE_GETREGS, debug.pid, NULL, &regs);
-				uint64_t rip = regs.rip;
+				uint64_t rip = tcdReadIP(&debug);
 				TcdCompUnit *cu   = tcdSurroundingCompUnit(&debug.info, rip);
 				TcdFunction *func = tcdSurroundingFunction(&debug.info, rip);
 				if (func == NULL) break;
@@ -338,9 +341,8 @@ int main(int argc, char **argv) {
 					TcdLocal *local = func->locals + i;
 					char type[1024] = {0};
 					typeToString(cu, local->type, type);
-					TcdLocDesc desc = {local->exprloc, 0};
 					TcdRtLoc rtloc = {0};
-					if (tcdInterpretLocation(&debug, desc, &rtloc) != 0)
+					if (tcdInterpretLocation(&debug, local->locdesc, &rtloc) != 0)
 						continue;
 					printf("%s (%s) 0x%lx\n", local->name, type, rtloc.address);
 				}
@@ -379,9 +381,8 @@ int main(int argc, char **argv) {
 				}
 				if (local == NULL) break;
 
-				TcdLocDesc desc = {local->exprloc, 0};
 				TcdRtLoc rtloc = {0};
-				if (tcdInterpretLocation(&debug, desc, &rtloc) != 0) break;
+				if (tcdInterpretLocation(&debug, local->locdesc, &rtloc) != 0) break;
 
 				if (strcmp(arg1, "str") == 0) {
 					uint8_t string[256];

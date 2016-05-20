@@ -56,12 +56,22 @@ void tcdFreeInfo(TcdInfo *info) {
 			free(func->name);
 			for (uint32_t j = 0; j < func->numLocals; j++) {
 				free(func->locals[j].name);
-				free(func->locals[j].exprloc);
+				free(func->locals[j].locdesc.expr);
 			}
 			free(func->locals);
 			free(func->lines);
 		}
 		free(cu->funcs);
+		for (uint32_t i = 0; i < cu->numTypes; i++) {
+			TcdType *type = cu->types + i;
+			switch (type->tclass) {
+				case TCDT_BASE:
+					free(type->base.name);
+					break;
+				default: break;
+			}
+		}
+		free(cu->types);
 		free(cu->name);
 		free(cu->compDir);
 		free(cu->producer);
