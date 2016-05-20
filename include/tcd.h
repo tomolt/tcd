@@ -49,10 +49,12 @@ union TcdType {
 		char *name;
 		uint8_t size;
 		uint8_t inter;
+		uint64_t off;
 	} base;
 	struct {
 		TcdTypeClass tclass;
 		union TcdType *to;
+		uint64_t off;
 	} pointer;
 	struct {
 		TcdTypeClass tclass;
@@ -61,7 +63,7 @@ union TcdType {
 	struct {
 		TcdTypeClass tclass;
 		char *name;
-	} struct_;
+	} struc;
 };
 typedef union TcdType TcdType;
 
@@ -72,6 +74,8 @@ struct TcdCompUnit {
 	uint64_t begin, end;
 	TcdFunction *funcs;
 	uint32_t numFuncs;
+	TcdType *types;
+	uint32_t numTypes;
 	/* TcdStruct *structs;
 	uint32_t numStructs; */
 };

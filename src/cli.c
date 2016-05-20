@@ -18,7 +18,7 @@ typedef enum {
 	KILL,
 	STEP, NEXT,
 	TRACE, WHERE,
-	REGISTERS, LINES, LOCALS, POINTS,
+	REGISTERS, LINES, TYPES, LOCALS, POINTS,
 	DUMP, PRINT,
 	INVALID
 } Command;
@@ -60,6 +60,8 @@ static void getNextCommand(Command *cmd, char *arg1, char *arg2) {
 		*cmd = REGISTERS;
 	} else if (strcmp(op, "lines") == 0) {
 		*cmd = LINES;
+	} else if (strcmp(op, "types") == 0) {
+		*cmd = TYPES;
 	} else if (strcmp(op, "locals") == 0) {
 		*cmd = LOCALS;
 	} else if (strcmp(op, "points") == 0) {
@@ -291,6 +293,26 @@ int main(int argc, char **argv) {
 				}
 			} break;
 
+			case TYPES: {
+				for (uint32_t u = 0; u < debug.info.numCompUnits; u++) {
+					TcdCompUnit *cu = debug.info.compUnits + u;
+					printf("%s/%s:\n", cu->compDir, cu->name);
+					for (uint32_t i = 0; i < cu->numTypes; i++) {
+						TcdType *type = cu->types + i;
+						switch (type->tclass)
+						{
+							case TCDT_BASE:
+								printf("  %s: off=%lu size=%d inter=%d\n", type->base.name, type->base.off, type->base.size, type->base.inter);
+								break;
+							case TCDT_POINTER:
+								printf("  <pointer>: off=%lu\n", type->pointer.off);
+								break;
+							default: break;
+						}
+					}
+				}
+			} break;
+
 			case LOCALS: {
 				struct user_regs_struct regs;
 				ptrace(PTRACE_GETREGS, debug.pid, NULL, &regs);
@@ -358,7 +380,7 @@ int main(int argc, char **argv) {
 					tcdReadMemory(&debug, rtloc.address, 4, &data);
 					printf("%f", data);
 				} else {
-					printf("Unrecognized variable type: '%s'");
+					printf("Unrecognized variable type: '%s'", arg1);
 				}
 				printf("\n");
 			} break;
