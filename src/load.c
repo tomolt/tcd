@@ -51,6 +51,34 @@
 	} \
 }
 
+#define ATTR_GET_STRING(out) { \
+	char *data; \
+	res = dwarf_formstring(attrs[i], &data, &error); \
+	CHECK_DWARF_RESULT(res); \
+	out = strdup(data); \
+	dwarf_dealloc(dbg, data, DW_DLA_STRING); \
+}
+
+#define ATTR_GET_UNSIGNED(out) { \
+	Dwarf_Unsigned data; \
+	res = dwarf_formudata(attrs[i], &data, &error); \
+	CHECK_DWARF_RESULT(res); \
+	out = data; \
+}
+
+#define ATTR_GET_ADDR(out) { \
+	Dwarf_Addr data; \
+	res = dwarf_formaddr(attrs[i], &data, &error); \
+	CHECK_DWARF_RESULT(res); \
+	out = data; \
+}
+
+/* TODO optimize & add error checking */
+#define ARRAY_PUSH_BACK(array, size, elem) do { \
+	array = realloc(array, ++size * sizeof(*array)); \
+	array[size - 1] = elem; \
+} while (0)
+
 static int loadLocals(Dwarf_Debug dbg, Dwarf_Die in_die, TcdLocal **out_locals, uint32_t *out_numLocals) {
 	TcdLocal *locals = NULL;
 	uint32_t numLocals = 0;
@@ -61,13 +89,9 @@ static int loadLocals(Dwarf_Debug dbg, Dwarf_Die in_die, TcdLocal **out_locals, 
 			/* Found local */
 			TcdLocal local = {0};
 			HANDLE_ATTRIBUTES(cur_die,
-				case DW_AT_name: {
-					char *data;
-					res = dwarf_formstring(attrs[i], &data, &error);
-					CHECK_DWARF_RESULT(res);
-					local.name = strdup(data);
-					dwarf_dealloc(dbg, data, DW_DLA_STRING);
-				} break;
+				case DW_AT_name:
+					ATTR_GET_STRING(local.name);
+					break;
 				case DW_AT_location: {
 					Dwarf_Ptr data;
 					Dwarf_Unsigned size;
@@ -93,59 +117,11 @@ static int loadLocals(Dwarf_Debug dbg, Dwarf_Die in_die, TcdLocal **out_locals, 
 					printf("type die tag: %s\n", tagname + 7);
 				} break;
 			)
-			locals = realloc(locals, ++numLocals * sizeof(*locals));
-			locals[numLocals - 1] = local;
+			ARRAY_PUSH_BACK(locals, numLocals, local);
 		} break;
 	)
 	*out_locals = locals;
 	*out_numLocals = numLocals;
-	return 0;
-}
-
-static int loadFuncs(Dwarf_Debug dbg, Dwarf_Die in_die, TcdFunction **out_funcs, uint32_t *out_numFuncs) {
-	Dwarf_Error error;
-	int res;
-	TcdFunction *funcs = NULL;
-	uint32_t numFuncs = 0;
-	HANDLE_SUB_DIES(in_die,
-		case DW_TAG_subprogram: {
-			/* Found function */
-			TcdFunction func = {0};
-			HANDLE_ATTRIBUTES(cur_die,
-				case DW_AT_name: {
-					char *data;
-					res = dwarf_formstring(attrs[i], &data, &error);
-					CHECK_DWARF_RESULT(res);
-					func.name = strdup(data);
-					dwarf_dealloc(dbg, data, DW_DLA_STRING);
-				} break;
-				case DW_AT_low_pc: {
-					Dwarf_Addr data;
-					res = dwarf_formaddr(attrs[i], &data, &error);
-					CHECK_DWARF_RESULT(res);
-					func.begin = data;
-				} break;
-				case DW_AT_high_pc: {
-					Dwarf_Unsigned data;
-					res = dwarf_formudata(attrs[i], &data, &error);
-					CHECK_DWARF_RESULT(res);
-					func.end = data;
-				} break;
-			)
-			func.end += func.begin;
-
-			Dwarf_Die child;
-			res = dwarf_child(cur_die, &child, &error);
-			CHECK_DWARF_RESULT(res);
-			if (loadLocals(dbg, child, &func.locals, &func.numLocals) != 0)
-				return -1;
-
-			funcs = realloc(funcs, ++numFuncs * sizeof(*funcs));
-			funcs[numFuncs - 1] = func;
-		}
-	)
-	*out_funcs = funcs;
-	*out_numFuncs = numFuncs;
 	return 0;
 }
 
@@ -179,10 +155,8 @@ static int loadLines(Dwarf_Debug dbg, Dwarf_Die die, TcdFunction *funcs, uint32_
 		}
 		/* Do not allow multiple addresses per line & lines without surrounding functions */
 		if (lastNumber != number && cur_func != NULL) {
-			cur_func->lines = realloc(cur_func->lines,
-				++cur_func->numLines * sizeof(*cur_func->lines));
-			cur_func->lines[cur_func->numLines - 1].number = number;
-			cur_func->lines[cur_func->numLines - 1].address = address;
+			TcdLine line = {number, address};
+			ARRAY_PUSH_BACK(cur_func->lines, cur_func->numLines, line);
 		}
 		lastNumber = number;
 		dwarf_dealloc(dbg, dlines[i], DW_DLA_LINE);
@@ -204,51 +178,34 @@ static int loadCU(Dwarf_Debug dbg, Dwarf_Die cu_die, TcdCompUnit *out_cu)
 	TcdCompUnit cu = {0};
 	/* Load compilation unit attributes */
 	HANDLE_ATTRIBUTES(cu_die,
-		case DW_AT_name: {
-			char *data;
-			res = dwarf_formstring(attrs[i], &data, &error);
-			CHECK_DWARF_RESULT(res);
-			cu.name = strdup(data);
-			dwarf_dealloc(dbg, data, DW_DLA_STRING);
-		} break;
-		case DW_AT_comp_dir: {
-			char *data;
-			res = dwarf_formstring(attrs[i], &data, &error);
-			CHECK_DWARF_RESULT(res);
-			cu.compDir = strdup(data);
-			dwarf_dealloc(dbg, data, DW_DLA_STRING);
-		} break;
-		case DW_AT_producer: {
-			char *data;
-			res = dwarf_formstring(attrs[i], &data, &error);
-			CHECK_DWARF_RESULT(res);
-			cu.producer = strdup(data);
-			dwarf_dealloc(dbg, data, DW_DLA_STRING);
-		} break;
-		case DW_AT_low_pc: {
-			Dwarf_Addr data;
-			res = dwarf_formaddr(attrs[i], &data, &error);
-			CHECK_DWARF_RESULT(res);
-			cu.begin = data;
-		} break;
-		case DW_AT_high_pc: {
-			Dwarf_Unsigned data;
-			res = dwarf_formudata(attrs[i], &data, &error);
-			CHECK_DWARF_RESULT(res);
-			cu.end = data;
-		} break;
+		case DW_AT_name:     ATTR_GET_STRING  (cu.name    ); break;
+		case DW_AT_comp_dir: ATTR_GET_STRING  (cu.compDir ); break;
+		case DW_AT_producer: ATTR_GET_STRING  (cu.producer); break;
+		case DW_AT_low_pc:   ATTR_GET_ADDR    (cu.begin   ); break;
+		case DW_AT_high_pc:  ATTR_GET_UNSIGNED(cu.end     ); break;
 	)
 	cu.end += cu.begin;
 	/* Load all sub dies */
-	TcdType *types = NULL;
-	uint32_t numTypes = 0;
-
 	Dwarf_Die child;
 	res = dwarf_child(cu_die, &child, &error);
 	CHECK_DWARF_RESULT(res);
 	HANDLE_SUB_DIES(child,
 		case DW_TAG_subprogram: {
 			/* Found function */
+			TcdFunction func = {0};
+			HANDLE_ATTRIBUTES(cur_die,
+				case DW_AT_name:    ATTR_GET_STRING  (func.name ); break;
+				case DW_AT_low_pc:  ATTR_GET_ADDR    (func.begin); break;
+				case DW_AT_high_pc: ATTR_GET_UNSIGNED(func.end  ); break;
+			)
+			func.end += func.begin;
+
+			Dwarf_Die child;
+			res = dwarf_child(cur_die, &child, &error);
+			CHECK_DWARF_RESULT(res);
+			if (loadLocals(dbg, child, &func.locals, &func.numLocals) != 0)
+				return -1;
+			ARRAY_PUSH_BACK(cu.funcs, cu.numFuncs, func);
 		} break;
 		case DW_TAG_base_type: {
 			TcdType type = {0};
@@ -260,24 +217,12 @@ static int loadCU(Dwarf_Debug dbg, Dwarf_Die cu_die, TcdCompUnit *out_cu)
 			type.base.off = offset;
 			/* Iterate trough attributes */
 			HANDLE_ATTRIBUTES(cur_die,
-				case DW_AT_name: {
-					char *data;
-					res = dwarf_formstring(attrs[i], &data, &error);
-					CHECK_DWARF_RESULT(res);
-					type.base.name = strdup(data);
-					dwarf_dealloc(dbg, data, DW_DLA_STRING);
-				} break;
-				case DW_AT_byte_size: {
-					Dwarf_Unsigned data;
-					res = dwarf_formudata(attrs[i], &data, &error);
-					CHECK_DWARF_RESULT(res);
-					type.base.size = data;
-				} break;
+				case DW_AT_name:      ATTR_GET_STRING  (type.base.name); break;
+				case DW_AT_byte_size: ATTR_GET_UNSIGNED(type.base.size); break;
 				case DW_AT_encoding: {
-					Dwarf_Unsigned data;
-					res = dwarf_formudata(attrs[i], &data, &error);
-					CHECK_DWARF_RESULT(res);
-					switch (data) {
+					Dwarf_Unsigned inter;
+					ATTR_GET_UNSIGNED(inter);
+					switch (inter) {
 						case DW_ATE_address:       type.base.inter = TCDI_ADDRESS;  break;
 						case DW_ATE_signed:        type.base.inter = TCDI_SIGNED;   break;
 						case DW_ATE_unsigned:      type.base.inter = TCDI_UNSIGNED; break;
@@ -288,8 +233,7 @@ static int loadCU(Dwarf_Debug dbg, Dwarf_Die cu_die, TcdCompUnit *out_cu)
 					}
 				} break;
 			)
-			types = realloc(types, ++numTypes * sizeof(*types));
-			types[numTypes - 1] = type;
+			ARRAY_PUSH_BACK(cu.types, cu.numTypes, type);
 		} break;
 		case DW_TAG_pointer_type: {
 			TcdType type = {0};
@@ -302,17 +246,9 @@ static int loadCU(Dwarf_Debug dbg, Dwarf_Die cu_die, TcdCompUnit *out_cu)
 					type.pointer.off = data;
 				} break;
 			)
-			types = realloc(types, ++numTypes * sizeof(*types));
-			types[numTypes - 1] = type;
+			ARRAY_PUSH_BACK(cu.types, cu.numTypes, type);
 		} break;
 	)
-	cu.types = types;
-	cu.numTypes = numTypes;
-	/* Load functions */
-	res = dwarf_child(cu_die, &child, &error);
-	CHECK_DWARF_RESULT(res);
-	if (loadFuncs(dbg, child, &cu.funcs, &cu.numFuncs) != 0)
-		return -1;
 	/* Load lines */
 	if (loadLines(dbg, cu_die, cu.funcs, cu.numFuncs) != 0)
 		return -1;
@@ -360,8 +296,7 @@ int tcdLoadInfo(const char *file, TcdInfo *out_info) {
 			return -1;
         dwarf_dealloc(dbg, cu_die, DW_DLA_DIE);
 		/* Add compilation unit to list */
-		info.compUnits = realloc(info.compUnits, ++info.numCompUnits * sizeof(*info.compUnits));
-		info.compUnits[info.numCompUnits - 1] = cu;
+		ARRAY_PUSH_BACK(info.compUnits, info.numCompUnits, cu);
 		cu_number++;
     }
 	res = dwarf_finish(dbg, &error);
