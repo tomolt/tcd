@@ -82,6 +82,24 @@
 	array[size - 1] = elem; \
 } while (0)
 
+#define STORE_TYPE_OFFSET_IN_POINTER(ptr, off) do { \
+	uint64_t *offset = malloc(8); \
+	*offset = off; \
+	ptr = (union TcdType*)offset; \
+} while (0)
+
+/* TODO optimize & add error checking */
+#define REPLACE_TYPE_OFFSET_BY_POINTER(ptr) do { \
+	uint64_t id = *(uint64_t*)ptr; \
+	free(ptr); \
+	for (uint64_t k = 0; k < numTypeIds; k++) { \
+		if (typeIds[k] == id) { \
+			ptr = cu.types + k; \
+			break; \
+		} \
+	} \
+} while (0)
+
 int tcdLoadInfo(const char *file, TcdInfo *out_info) {
 	TcdInfo info = {0};
 	Dwarf_Debug dbg = 0;
@@ -164,9 +182,7 @@ int tcdLoadInfo(const char *file, TcdInfo *out_info) {
 								Dwarf_Off off;
 								res = dwarf_formref(attrs[i], &off, &error);
 								CHECK_DWARF_RESULT(res);
-								uint64_t *placeholder = malloc(8);
-								*placeholder = off;
-								local.type = (TcdType*)placeholder;
+								STORE_TYPE_OFFSET_IN_POINTER(local.type, off);
 							} break;
 						)
 						ARRAY_PUSH_BACK(func.locals, func.numLocals, local);
@@ -216,9 +232,7 @@ int tcdLoadInfo(const char *file, TcdInfo *out_info) {
 						Dwarf_Off to;
 						res = dwarf_formref(attrs[i], &to, &error);
 						CHECK_DWARF_RESULT(res);
-						uint64_t *placeholder = malloc(8);
-						*placeholder = to;
-						type.pointer.to = (union TcdType*)placeholder;
+						STORE_TYPE_OFFSET_IN_POINTER(type.pointer.to, to);
 					} break;
 				)
 				ARRAY_PUSH_BACK(cu.types, cu.numTypes, type);
@@ -237,9 +251,7 @@ int tcdLoadInfo(const char *file, TcdInfo *out_info) {
 						Dwarf_Off of;
 						res = dwarf_formref(attrs[i], &of, &error);
 						CHECK_DWARF_RESULT(res);
-						uint64_t *placeholder = malloc(8);
-						*placeholder = of;
-						type.array.of = (union TcdType*)placeholder;
+						STORE_TYPE_OFFSET_IN_POINTER(type.array.of, of);
 					} break;
 				)
 				ARRAY_PUSH_BACK(cu.types, cu.numTypes, type);
@@ -290,39 +302,14 @@ int tcdLoadInfo(const char *file, TcdInfo *out_info) {
 		/* Replace type offsets / placeholders by pointers */
 		for (int i = 0; i < cu.numTypes; i++) {
 			switch (cu.types[i].tclass) {
-				case TCDT_POINTER: {
-					uint64_t id = *(uint64_t*)cu.types[i].pointer.to;
-					free(cu.types[i].pointer.to);
-					for (uint64_t k = 0; k < numTypeIds; k++) {
-						if (typeIds[k] == id) {
-							cu.types[i].pointer.to = cu.types + k;
-							break;
-						}
-					}
-				} break;
-				case TCDT_ARRAY: {
-					uint64_t id = *(uint64_t*)cu.types[i].array.of;
-					free(cu.types[i].array.of);
-					for (uint64_t k = 0; k < numTypeIds; k++) {
-						if (typeIds[k] == id) {
-							cu.types[i].array.of = cu.types + k;
-							break;
-						}
-					}
-				} break;
+				case TCDT_POINTER: REPLACE_TYPE_OFFSET_BY_POINTER(cu.types[i].pointer.to); break;
+				case TCDT_ARRAY:   REPLACE_TYPE_OFFSET_BY_POINTER(cu.types[i].array.of  ); break;
 				default: break;
 			}
 		}
 		for (int i = 0; i < cu.numFuncs; i++) {
 			for (int j = 0; j < cu.funcs[i].numLocals; j++) {
-				uint64_t id = *(uint64_t*)cu.funcs[i].locals[j].type;
-				free(cu.funcs[i].locals[j].type);
-				for (uint64_t k = 0; k < numTypeIds; k++) {
-					if (typeIds[k] == id) {
-						cu.funcs[i].locals[j].type = cu.types + k;
-						break;
-					}
-				}
+				REPLACE_TYPE_OFFSET_BY_POINTER(cu.funcs[i].locals[j].type);
 			}
 		}
 		/* Deallocate compilation unit die */
