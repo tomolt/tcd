@@ -22,30 +22,7 @@ struct TcdRtLoc {
 typedef struct TcdLocDesc TcdLocDesc;
 typedef struct TcdRtLoc   TcdRtLoc;
 
-/* ----- Info ----- */
-
-struct TcdLine {
-	uint32_t number;
-	uint64_t address;
-};
-typedef struct TcdLine TcdLine;
-
-struct TcdLocal {
-	char *name;
-	struct TcdLocDesc locdesc;
-	uint64_t type;
-};
-typedef struct TcdLocal TcdLocal;
-
-struct TcdFunction {
-	char *name;
-	uint64_t begin, end;
-	TcdLine *lines;
-	uint32_t numLines;
-	TcdLocal *locals;
-	uint32_t numLocals;
-};
-typedef struct TcdFunction TcdFunction;
+/* ----- Type ----- */
 
 enum TcdTypeClass {
 	TCDT_BASE, TCDT_POINTER, TCDT_ARRAY, TCDT_STRUCT
@@ -69,15 +46,14 @@ union TcdType {
 		char *name;
 		uint8_t size;
 		uint8_t inter;
-		uint64_t off;
 	} base;
 	struct {
 		TcdTypeClass tclass;
-		uint64_t to;
+		union TcdType *to;
 	} pointer;
 	struct {
 		TcdTypeClass tclass;
-		uint64_t of;
+		union TcdType *of;
 	} array;
 	struct {
 		TcdTypeClass tclass;
@@ -85,6 +61,31 @@ union TcdType {
 	} struc;
 };
 typedef union TcdType TcdType;
+
+/* ----- Info ----- */
+
+struct TcdLine {
+	uint32_t number;
+	uint64_t address;
+};
+typedef struct TcdLine TcdLine;
+
+struct TcdLocal {
+	char *name;
+	TcdLocDesc locdesc;
+	TcdType *type;
+};
+typedef struct TcdLocal TcdLocal;
+
+struct TcdFunction {
+	char *name;
+	uint64_t begin, end;
+	TcdLine *lines;
+	uint32_t numLines;
+	TcdLocal *locals;
+	uint32_t numLocals;
+};
+typedef struct TcdFunction TcdFunction;
 
 struct TcdCompUnit {
 	char *name;
@@ -144,18 +145,19 @@ void tcdWriteMemory(TcdContext*, uint64_t, uint32_t, void*);
 uint64_t tcdReadIP(TcdContext*);
 uint64_t tcdReadBP(TcdContext*);
 
+void tcdReadRtLoc(TcdContext*, TcdRtLoc, uint32_t, void*);
+
 void tcdStepInstruction(TcdContext*);
 uint64_t tcdStep(TcdContext*);
 uint64_t tcdNext(TcdContext*);
 
-/* TODO move into separate / own module? */
 uint16_t tcdGetStackTrace(TcdContext*, uint64_t*, uint16_t);
 
 /* ----- Address Functions ----- */
 
 int tcdInterpretLocation(TcdContext*, TcdLocDesc, TcdRtLoc*);
 
-int tcdDeref     (TcdContext*, TcdType, TcdRtLoc,           TcdType*, TcdRtLoc*);
-int tcdDerefIndex(TcdContext*, TcdType, TcdRtLoc, uint64_t, TcdType*, TcdRtLoc*);
+int tcdDeref(TcdContext*, TcdType*, TcdRtLoc, TcdType**, TcdRtLoc*);
+int tcdDerefIndex(TcdContext*, TcdType*, TcdRtLoc, uint64_t, TcdType**, TcdRtLoc*);
 
 #endif

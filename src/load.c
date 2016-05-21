@@ -161,10 +161,12 @@ int tcdLoadInfo(const char *file, TcdInfo *out_info) {
 								/* dwarf_dealloc(dbg, data, DW_DLA_PTR); */
 							} break;
 							case DW_AT_type: {
-								Dwarf_Off typeId;
-								res = dwarf_formref(attrs[i], &typeId, &error);
+								Dwarf_Off off;
+								res = dwarf_formref(attrs[i], &off, &error);
 								CHECK_DWARF_RESULT(res);
-								local.type = typeId;
+								uint64_t *placeholder = malloc(8);
+								*placeholder = off;
+								local.type = (TcdType*)placeholder;
 							} break;
 						)
 						ARRAY_PUSH_BACK(func.locals, func.numLocals, local);
@@ -214,7 +216,9 @@ int tcdLoadInfo(const char *file, TcdInfo *out_info) {
 						Dwarf_Off to;
 						res = dwarf_formref(attrs[i], &to, &error);
 						CHECK_DWARF_RESULT(res);
-						type.pointer.to = to;
+						uint64_t *placeholder = malloc(8);
+						*placeholder = to;
+						type.pointer.to = (union TcdType*)placeholder;
 					} break;
 				)
 				ARRAY_PUSH_BACK(cu.types, cu.numTypes, type);
@@ -233,7 +237,9 @@ int tcdLoadInfo(const char *file, TcdInfo *out_info) {
 						Dwarf_Off of;
 						res = dwarf_formref(attrs[i], &of, &error);
 						CHECK_DWARF_RESULT(res);
-						type.array.of = of;
+						uint64_t *placeholder = malloc(8);
+						*placeholder = of;
+						type.array.of = (union TcdType*)placeholder;
 					} break;
 				)
 				ARRAY_PUSH_BACK(cu.types, cu.numTypes, type);
@@ -281,22 +287,26 @@ int tcdLoadInfo(const char *file, TcdInfo *out_info) {
 		}
 		/* Deallocate line list */
 		dwarf_dealloc(dbg, dlines, DW_DLA_LIST);
-		/* Replace type offsets / ids by pointers */
+		/* Replace type offsets / placeholders by pointers */
 		for (int i = 0; i < cu.numTypes; i++) {
 			switch (cu.types[i].tclass) {
 				case TCDT_POINTER: {
-					uint64_t id = cu.types[i].pointer.to;
+					uint64_t id = *(uint64_t*)cu.types[i].pointer.to;
+					free(cu.types[i].pointer.to);
 					for (uint64_t k = 0; k < numTypeIds; k++) {
 						if (typeIds[k] == id) {
-							cu.types[i].pointer.to = k;
+							cu.types[i].pointer.to = cu.types + k;
+							break;
 						}
 					}
 				} break;
 				case TCDT_ARRAY: {
-					uint64_t id = cu.types[i].array.of;
+					uint64_t id = *(uint64_t*)cu.types[i].array.of;
+					free(cu.types[i].array.of);
 					for (uint64_t k = 0; k < numTypeIds; k++) {
 						if (typeIds[k] == id) {
-							cu.types[i].array.of = k;
+							cu.types[i].array.of = cu.types + k;
+							break;
 						}
 					}
 				} break;
@@ -305,10 +315,12 @@ int tcdLoadInfo(const char *file, TcdInfo *out_info) {
 		}
 		for (int i = 0; i < cu.numFuncs; i++) {
 			for (int j = 0; j < cu.funcs[i].numLocals; j++) {
-				uint64_t id = cu.funcs[i].locals[j].type;
+				uint64_t id = *(uint64_t*)cu.funcs[i].locals[j].type;
+				free(cu.funcs[i].locals[j].type);
 				for (uint64_t k = 0; k < numTypeIds; k++) {
 					if (typeIds[k] == id) {
-						cu.funcs[i].locals[j].type = k;
+						cu.funcs[i].locals[j].type = cu.types + k;
+						break;
 					}
 				}
 			}

@@ -61,6 +61,21 @@ uint64_t tcdReadBP(TcdContext *debug) {
 	return ptrace(PTRACE_PEEKUSER, debug->pid, 8 * RBP, NULL);
 }
 
+void tcdReadRtLoc(TcdContext *debug, TcdRtLoc rtloc, uint32_t size, void *data) {
+	switch (rtloc.region) {
+		case TCDR_ADDRESS:
+			tcdReadMemory(debug, rtloc.address, size, data);
+			break;
+		case TCDR_REGISTER:
+			/* TODO implement */
+			memset(data, 0, size);
+			break;
+		case TCDR_HOST_TEMP:
+			memcpy(data, &rtloc.address, size < 8 ? size : 8);
+			break;
+	}
+}
+
 void tcdStepInstruction(TcdContext *debug) {
 	ptrace(PTRACE_SINGLESTEP, debug->pid, NULL, NULL);
 }

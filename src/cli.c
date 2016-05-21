@@ -91,20 +91,20 @@ static void printWhere(TcdInfo *info, uint64_t address) {
 	printf(".\n");
 }
 
-static void typeToString(TcdCompUnit *cu, uint64_t type, char *str)
+static void typeToString(TcdType *type, char *str)
 {
-	switch (cu->types[type].tclass) {
+	switch (type->tclass) {
 		case TCDT_BASE:
-			strcpy(str, cu->types[type].base.name);
+			strcpy(str, type->base.name);
 			break;
 		case TCDT_POINTER:
 			str[0] = '*';
-			typeToString(cu, cu->types[type].pointer.to, str + 1);
+			typeToString(type->pointer.to, str + 1);
 			break;
 		case TCDT_ARRAY:
 			str[0] = '[';
 			str[1] = ']';
-			typeToString(cu, cu->types[type].array.of, str + 2);
+			typeToString(type->array.of, str + 2);
 			break;
 		default: break;
 	}
@@ -321,10 +321,10 @@ int main(int argc, char **argv) {
 						switch (type->tclass)
 						{
 							case TCDT_BASE:
-								printf("  %s: off=%lu size=%d inter=%d\n", type->base.name, type->base.off, type->base.size, type->base.inter);
+								printf("  %s: size=%d inter=%d\n", type->base.name, type->base.size, type->base.inter);
 								break;
 							case TCDT_POINTER:
-								printf("  <pointer>: to=%lu\n", type->pointer.to);
+								printf("  <pointer>: to=%p\n", (void*)type->pointer.to);
 								break;
 							default: break;
 						}
@@ -334,13 +334,12 @@ int main(int argc, char **argv) {
 
 			case LOCALS: {
 				uint64_t rip = tcdReadIP(&debug);
-				TcdCompUnit *cu   = tcdSurroundingCompUnit(&debug.info, rip);
 				TcdFunction *func = tcdSurroundingFunction(&debug.info, rip);
 				if (func == NULL) break;
 				for (uint32_t i = 0; i < func->numLocals; i++) {
 					TcdLocal *local = func->locals + i;
 					char type[1024] = {0};
-					typeToString(cu, local->type, type);
+					typeToString(&local->type, type);
 					TcdRtLoc rtloc = {0};
 					if (tcdInterpretLocation(&debug, local->locdesc, &rtloc) != 0)
 						continue;
