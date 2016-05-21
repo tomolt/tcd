@@ -24,7 +24,7 @@ $(NAME): $(FULLOBJS)
 $(OBJDIR):
 	mkdir -p $(OBJDIR)
 
-$(FULLOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.c | $(OBJDIR)
+$(FULLOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.c $(INCDIR)/tcd.h | $(OBJDIR)
 	$(CC) $(CFLAGS) $(INCFLAG) -c $^ -o $@
 
 clean:

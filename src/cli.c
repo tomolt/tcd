@@ -339,7 +339,7 @@ int main(int argc, char **argv) {
 				for (uint32_t i = 0; i < func->numLocals; i++) {
 					TcdLocal *local = func->locals + i;
 					char type[1024] = {0};
-					typeToString(&local->type, type);
+					typeToString(local->type, type);
 					TcdRtLoc rtloc = {0};
 					if (tcdInterpretLocation(&debug, local->locdesc, &rtloc) != 0)
 						continue;
@@ -373,7 +373,7 @@ int main(int argc, char **argv) {
 				if (func == NULL) break;
 				TcdLocal *local = NULL;
 				for (uint32_t i = 0; i < func->numLocals; i++) {
-					if (strcmp(func->locals[i].name, arg2) == 0) {
+					if (strcmp(func->locals[i].name, arg1) == 0) {
 						local = func->locals + i;
 						break;
 					}
@@ -383,23 +383,78 @@ int main(int argc, char **argv) {
 				TcdRtLoc rtloc = {0};
 				if (tcdInterpretLocation(&debug, local->locdesc, &rtloc) != 0) break;
 
-				if (strcmp(arg1, "str") == 0) {
-					uint8_t string[256];
-					string[255] = 0;
-					tcdReadMemory(&debug, rtloc.address, 255, string);
-					printf("\"%s\"", string);
-				} else if (strcmp(arg1, "i32") == 0) {
-					int32_t data;
-					tcdReadMemory(&debug, rtloc.address, 4, &data);
-					printf("%d", data);
-				} else if (strcmp(arg1, "f32") == 0) {
-					float data;
-					tcdReadMemory(&debug, rtloc.address, 4, &data);
-					printf("%f", data);
-				} else {
-					printf("Unrecognized variable type: '%s'", arg1);
+				switch (local->type->tclass) {
+					case TCDT_BASE: {
+						switch (local->type->base.inter) {
+							case TCDI_ADDRESS: break;
+							case TCDI_SIGNED: {
+								int64_t data;
+								tcdReadRtLoc(&debug, rtloc, local->type->base.size, &data);
+								printf("%ld\n", data);
+							} break;
+							case TCDI_UNSIGNED: {
+								uint64_t data;
+								tcdReadRtLoc(&debug, rtloc, local->type->base.size, &data);
+								printf("%lu\n", data);
+							} break;
+							case TCDI_CHAR: { /* TODO wide characters */
+								char data;
+								tcdReadRtLoc(&debug, rtloc, 1, &data);
+								printf("%d = '%c'\n", data, data);
+							} break;
+							case TCDI_UCHAR: { /* TODO wide characters */
+								unsigned char data;
+								tcdReadRtLoc(&debug, rtloc, 1, &data);
+								printf("%u = '%c'\n", data, data);
+							} break;
+							case TCDI_FLOAT:
+								if (local->type->base.size == 4) {
+									float data;
+									tcdReadRtLoc(&debug, rtloc, 4, &data);
+									printf("%f\n", data);
+								} else if (local->type->base.size == 8) {
+									double data;
+									tcdReadRtLoc(&debug, rtloc, 8, &data);
+									printf("%lf\n", data);
+								} else {
+									printf("(error: floating point value is neither float nor double)\n");
+								}
+								break; /* TODO */
+							case TCDI_BOOL: {
+								uint8_t data;
+								tcdReadRtLoc(&debug, rtloc, 1, &data);
+								printf("%s\n", data ? "true" : "false");
+							} break;
+						}
+					} break;
+					case TCDT_POINTER: {
+						uint64_t address;
+						tcdReadRtLoc(&debug, rtloc, 8, &address);
+						printf("(pointer) 0x%lx", address);
+						if  (local->type->pointer.to->tclass == TCDT_BASE &&
+							(local->type->pointer.to->base.inter == TCDI_CHAR ||
+							 local->type->pointer.to->base.inter == TCDI_UCHAR)) {
+							char data[256];
+							data[255] = '\0';
+							tcdReadRtLoc(&debug, (TcdRtLoc){address, TCDR_ADDRESS}, 255, data);
+							printf(" = \"%s\"", data);
+						}
+						printf("\n");
+					} break;
+					case TCDT_ARRAY: {
+						printf("(array)");
+						if  (local->type->array.of->tclass == TCDT_BASE &&
+							(local->type->array.of->base.inter == TCDI_CHAR ||
+							 local->type->array.of->base.inter == TCDI_UCHAR)) {
+							char data[256];
+							data[255] = '\0';
+							tcdReadRtLoc(&debug, rtloc, 255, data);
+							printf(" = \"%s\"", data);
+						}
+						printf("\n");
+					} break;
+					default: break;
 				}
-				printf("\n");
 			} break;
 
 			/* Continue execution */
