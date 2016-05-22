@@ -3,7 +3,7 @@ LD=clang
 CFLAGS=-g -std=gnu99 -Wall -pedantic
 INCFLAG=-I$(INCDIR)/
 
-SOURCES=address.c cli.c context.c control.c info.c load.c
+SOURCES=address.c cexpr.c cli.c context.c control.c info.c load.c
 SRCDIR=src
 FULLSRCS=$(addprefix $(SRCDIR)/,$(SOURCES))
 INCDIR=include
@@ -24,7 +24,7 @@ $(NAME): $(FULLOBJS)
 $(OBJDIR):
 	mkdir -p $(OBJDIR)
 
-$(FULLOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.c $(INCDIR)/tcd.h | $(OBJDIR)
+$(FULLOBJS): $(OBJDIR)/%.o: $(SRCDIR)/%.c | $(OBJDIR)
 	$(CC) $(CFLAGS) $(INCFLAG) -c $^ -o $@
 
 clean:

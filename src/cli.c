@@ -95,16 +95,16 @@ static void typeToString(TcdType *type, char *str)
 {
 	switch (type->tclass) {
 		case TCDT_BASE:
-			strcpy(str, type->base.name);
+			strcpy(str, type->as.base.name);
 			break;
 		case TCDT_POINTER:
 			str[0] = '*';
-			typeToString(type->pointer.to, str + 1);
+			typeToString(type->as.pointer.to, str + 1);
 			break;
 		case TCDT_ARRAY:
 			str[0] = '[';
 			str[1] = ']';
-			typeToString(type->array.of, str + 2);
+			typeToString(type->as.array.of, str + 2);
 			break;
 		default: break;
 	}
@@ -321,10 +321,10 @@ int main(int argc, char **argv) {
 						switch (type->tclass)
 						{
 							case TCDT_BASE:
-								printf("  %s: size=%d inter=%d\n", type->base.name, type->base.size, type->base.inter);
+								printf("  %s: size=%d inter=%d\n", type->as.base.name, type->size, type->as.base.inter);
 								break;
 							case TCDT_POINTER:
-								printf("  <pointer>: to=%p\n", (void*)type->pointer.to);
+								printf("  <pointer>: to=%p\n", (void*)type->as.pointer.to);
 								break;
 							default: break;
 						}
@@ -368,33 +368,24 @@ int main(int argc, char **argv) {
 			} break;
 
 			case PRINT: {
-				uint64_t rip = tcdReadIP(&debug);
-				TcdFunction *func = tcdSurroundingFunction(&debug.info, rip);
-				if (func == NULL) break;
-				TcdLocal *local = NULL;
-				for (uint32_t i = 0; i < func->numLocals; i++) {
-					if (strcmp(func->locals[i].name, arg1) == 0) {
-						local = func->locals + i;
-						break;
-					}
+				TcdType *type;
+				TcdRtLoc rtloc;
+				if (cexprParse(&debug, arg1, &type, &rtloc) != 0) {
+					printf("(input error)\n");
+					break;
 				}
-				if (local == NULL) break;
-
-				TcdRtLoc rtloc = {0};
-				if (tcdInterpretLocation(&debug, local->locdesc, &rtloc) != 0) break;
-
-				switch (local->type->tclass) {
+				switch (type->tclass) {
 					case TCDT_BASE: {
-						switch (local->type->base.inter) {
+						switch (type->as.base.inter) {
 							case TCDI_ADDRESS: break;
 							case TCDI_SIGNED: {
 								int64_t data;
-								tcdReadRtLoc(&debug, rtloc, local->type->base.size, &data);
+								tcdReadRtLoc(&debug, rtloc, type->size, &data);
 								printf("%ld\n", data);
 							} break;
 							case TCDI_UNSIGNED: {
 								uint64_t data;
-								tcdReadRtLoc(&debug, rtloc, local->type->base.size, &data);
+								tcdReadRtLoc(&debug, rtloc, type->size, &data);
 								printf("%lu\n", data);
 							} break;
 							case TCDI_CHAR: { /* TODO wide characters */
@@ -408,18 +399,18 @@ int main(int argc, char **argv) {
 								printf("%u = '%c'\n", data, data);
 							} break;
 							case TCDI_FLOAT:
-								if (local->type->base.size == 4) {
+								if (type->size == 4) {
 									float data;
 									tcdReadRtLoc(&debug, rtloc, 4, &data);
 									printf("%f\n", data);
-								} else if (local->type->base.size == 8) {
+								} else if (type->size == 8) {
 									double data;
 									tcdReadRtLoc(&debug, rtloc, 8, &data);
 									printf("%lf\n", data);
 								} else {
 									printf("(error: floating point value is neither float nor double)\n");
 								}
-								break; /* TODO */
+								break;
 							case TCDI_BOOL: {
 								uint8_t data;
 								tcdReadRtLoc(&debug, rtloc, 1, &data);
@@ -431,9 +422,9 @@ int main(int argc, char **argv) {
 						uint64_t address;
 						tcdReadRtLoc(&debug, rtloc, 8, &address);
 						printf("(pointer) 0x%lx", address);
-						if  (local->type->pointer.to->tclass == TCDT_BASE &&
-							(local->type->pointer.to->base.inter == TCDI_CHAR ||
-							 local->type->pointer.to->base.inter == TCDI_UCHAR)) {
+						if  (type->as.pointer.to->tclass == TCDT_BASE &&
+							(type->as.pointer.to->as.base.inter == TCDI_CHAR ||
+							 type->as.pointer.to->as.base.inter == TCDI_UCHAR)) {
 							char data[256];
 							data[255] = '\0';
 							tcdReadRtLoc(&debug, (TcdRtLoc){address, TCDR_ADDRESS}, 255, data);
@@ -443,9 +434,9 @@ int main(int argc, char **argv) {
 					} break;
 					case TCDT_ARRAY: {
 						printf("(array)");
-						if  (local->type->array.of->tclass == TCDT_BASE &&
-							(local->type->array.of->base.inter == TCDI_CHAR ||
-							 local->type->array.of->base.inter == TCDI_UCHAR)) {
+						if  (type->as.array.of->tclass == TCDT_BASE &&
+							(type->as.array.of->as.base.inter == TCDI_CHAR ||
+							 type->as.array.of->as.base.inter == TCDI_UCHAR)) {
 							char data[256];
 							data[255] = '\0';
 							tcdReadRtLoc(&debug, rtloc, 255, data);
@@ -455,6 +446,7 @@ int main(int argc, char **argv) {
 					} break;
 					default: break;
 				}
+				cexprFreeType(type);
 			} break;
 
 			/* Continue execution */

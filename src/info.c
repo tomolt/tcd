@@ -66,7 +66,7 @@ void tcdFreeInfo(TcdInfo *info) {
 			TcdType *type = cu->types + i;
 			switch (type->tclass) {
 				case TCDT_BASE:
-					free(type->base.name);
+					free(type->as.base.name);
 					break;
 				default: break;
 			}

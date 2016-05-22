@@ -39,6 +39,28 @@ enum {
 	TCDI_BOOL
 };
 
+struct TcdType {
+	TcdTypeClass tclass;
+	uint32_t size;
+	union {
+		struct {
+			char *name;
+			uint8_t inter;
+		} base;
+		struct {
+			struct TcdType *to;
+		} pointer;
+		struct {
+			struct TcdType *of;
+		} array;
+		struct {
+			char *name;
+		} struc;
+	} as;
+};
+typedef struct TcdType TcdType;
+
+#if 0
 union TcdType {
 	TcdTypeClass tclass;
 	struct {
@@ -61,6 +83,7 @@ union TcdType {
 	} struc;
 };
 typedef union TcdType TcdType;
+#endif
 
 /* ----- Info ----- */
 
@@ -159,5 +182,8 @@ int tcdInterpretLocation(TcdContext*, TcdLocDesc, TcdRtLoc*);
 
 int tcdDeref(TcdContext*, TcdType*, TcdRtLoc, TcdType**, TcdRtLoc*);
 int tcdDerefIndex(TcdContext*, TcdType*, TcdRtLoc, uint64_t, TcdType**, TcdRtLoc*);
+
+void cexprFreeType(TcdType*);
+int cexprParse(TcdContext*, const char*, TcdType**, TcdRtLoc*);
 
 #endif

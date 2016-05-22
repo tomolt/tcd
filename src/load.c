@@ -85,7 +85,7 @@
 #define STORE_TYPE_OFFSET_IN_POINTER(ptr, off) do { \
 	uint64_t *offset = malloc(8); \
 	*offset = off; \
-	ptr = (union TcdType*)offset; \
+	ptr = (TcdType*)offset; \
 } while (0)
 
 /* TODO optimize & add error checking */
@@ -199,20 +199,20 @@ int tcdLoadInfo(const char *file, TcdInfo *out_info) {
 				CHECK_DWARF_RESULT(res);
 				/* Load attributes */
 				HANDLE_ATTRIBUTES(cur_die,
-					case DW_AT_name:      ATTR_GET_STRING  (type.base.name); break;
-					case DW_AT_byte_size: ATTR_GET_UNSIGNED(type.base.size); break;
+					case DW_AT_name:      ATTR_GET_STRING  (type.as.base.name); break;
+					case DW_AT_byte_size: ATTR_GET_UNSIGNED(type.size); break;
 					case DW_AT_encoding: {
 						Dwarf_Unsigned inter;
 						ATTR_GET_UNSIGNED(inter);
 						/* Convert dwarf encoding to tcd interpretation */
 						switch (inter) {
-							case DW_ATE_address:       type.base.inter = TCDI_ADDRESS;  break;
-							case DW_ATE_signed:        type.base.inter = TCDI_SIGNED;   break;
-							case DW_ATE_unsigned:      type.base.inter = TCDI_UNSIGNED; break;
-							case DW_ATE_signed_char:   type.base.inter = TCDI_CHAR;     break;
-							case DW_ATE_unsigned_char: type.base.inter = TCDI_UCHAR;    break;
-							case DW_ATE_float:         type.base.inter = TCDI_FLOAT;    break;
-							case DW_ATE_boolean:       type.base.inter = TCDI_BOOL;     break;
+							case DW_ATE_address:       type.as.base.inter = TCDI_ADDRESS;  break;
+							case DW_ATE_signed:        type.as.base.inter = TCDI_SIGNED;   break;
+							case DW_ATE_unsigned:      type.as.base.inter = TCDI_UNSIGNED; break;
+							case DW_ATE_signed_char:   type.as.base.inter = TCDI_CHAR;     break;
+							case DW_ATE_unsigned_char: type.as.base.inter = TCDI_UCHAR;    break;
+							case DW_ATE_float:         type.as.base.inter = TCDI_FLOAT;    break;
+							case DW_ATE_boolean:       type.as.base.inter = TCDI_BOOL;     break;
 						}
 					} break;
 				)
@@ -222,6 +222,7 @@ int tcdLoadInfo(const char *file, TcdInfo *out_info) {
 			case DW_TAG_pointer_type: {
 				TcdType type = {0};
 				type.tclass = TCDT_POINTER;
+				type.size = 8;
 				/* Fetch type offset */
 				Dwarf_Off typeId;
 				res = dwarf_dieoffset(cur_die, &typeId, &error);
@@ -232,7 +233,7 @@ int tcdLoadInfo(const char *file, TcdInfo *out_info) {
 						Dwarf_Off to;
 						res = dwarf_formref(attrs[i], &to, &error);
 						CHECK_DWARF_RESULT(res);
-						STORE_TYPE_OFFSET_IN_POINTER(type.pointer.to, to);
+						STORE_TYPE_OFFSET_IN_POINTER(type.as.pointer.to, to);
 					} break;
 				)
 				ARRAY_PUSH_BACK(cu.types, cu.numTypes, type);
@@ -241,6 +242,7 @@ int tcdLoadInfo(const char *file, TcdInfo *out_info) {
 			case DW_TAG_array_type: {
 				TcdType type = {0};
 				type.tclass = TCDT_ARRAY;
+				type.size = 0; /* TODO */
 				/* Fetch type offset */
 				Dwarf_Off typeId;
 				res = dwarf_dieoffset(cur_die, &typeId, &error);
@@ -251,7 +253,7 @@ int tcdLoadInfo(const char *file, TcdInfo *out_info) {
 						Dwarf_Off of;
 						res = dwarf_formref(attrs[i], &of, &error);
 						CHECK_DWARF_RESULT(res);
-						STORE_TYPE_OFFSET_IN_POINTER(type.array.of, of);
+						STORE_TYPE_OFFSET_IN_POINTER(type.as.array.of, of);
 					} break;
 				)
 				ARRAY_PUSH_BACK(cu.types, cu.numTypes, type);
@@ -302,8 +304,8 @@ int tcdLoadInfo(const char *file, TcdInfo *out_info) {
 		/* Replace type offsets / placeholders by pointers */
 		for (int i = 0; i < cu.numTypes; i++) {
 			switch (cu.types[i].tclass) {
-				case TCDT_POINTER: REPLACE_TYPE_OFFSET_BY_POINTER(cu.types[i].pointer.to); break;
-				case TCDT_ARRAY:   REPLACE_TYPE_OFFSET_BY_POINTER(cu.types[i].array.of  ); break;
+				case TCDT_POINTER: REPLACE_TYPE_OFFSET_BY_POINTER(cu.types[i].as.pointer.to); break;
+				case TCDT_ARRAY:   REPLACE_TYPE_OFFSET_BY_POINTER(cu.types[i].as.array.of  ); break;
 				default: break;
 			}
 		}

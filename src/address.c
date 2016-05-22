@@ -238,12 +238,23 @@ int tcdInterpretLocation(TcdContext *debug, TcdLocDesc desc, TcdRtLoc *rtloc) {
 int tcdDeref(TcdContext *debug, TcdType *in_type, TcdRtLoc in_rtloc, TcdType **out_type, TcdRtLoc *out_rtloc) {
 	if (in_type->tclass != TCDT_POINTER)
 		return -1;
-	*out_type = in_type->pointer.to;
+	*out_type = in_type->as.pointer.to;
 	out_rtloc->region = TCDR_ADDRESS;
 	tcdReadRtLoc(debug, in_rtloc, 8, &out_rtloc->address);
 	return 0;
 }
 
 int tcdDerefIndex(TcdContext *debug, TcdType *in_type, TcdRtLoc in_rtloc, uint64_t index, TcdType **out_type, TcdRtLoc *out_rtloc) {
-	return -1;
+	uint64_t beg;
+	if (in_type->tclass == TCDT_POINTER) {
+		tcdReadRtLoc(debug, in_rtloc, 8, &beg);
+		*out_type = in_type->as.pointer.to;
+	} else if (in_type->tclass == TCDT_ARRAY) {
+		beg = in_rtloc.address;
+		*out_type = in_type->as.array.of;
+		/* TODO check bounds */
+	} else return -1;
+	out_rtloc->region = TCDR_ADDRESS;
+	out_rtloc->address = beg + (*out_type)->size * index;
+	return 0;
 }
