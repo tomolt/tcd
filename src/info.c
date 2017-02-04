@@ -5,7 +5,7 @@
 
 TcdCompUnit *tcdSurroundingCompUnit(TcdInfo *info, uint64_t address) {
 	for (uint32_t u = 0; u < info->numCompUnits; u++) {
-		TcdCompUnit *cu = info->compUnits + u;
+		TcdCompUnit *cu = &info->compUnits[u];
 		if (address >= cu->begin && address <= cu->end) {
 			return cu;
 		}
@@ -18,7 +18,7 @@ TcdFunction *tcdSurroundingFunction(TcdInfo *info, uint64_t address) {
 	if (cu == NULL) return NULL;
 	for (uint32_t i = 0; i < cu->numFuncs; i++) {
 		if (address >= cu->funcs[i].begin && address < cu->funcs[i].end) {
-			return cu->funcs + i;
+			return &cu->funcs[i];
 		}
 	}
 	return NULL;
@@ -29,7 +29,7 @@ TcdFunction *tcdFunctionByName(TcdInfo *info, char *name) {
 		TcdCompUnit *cu = info->compUnits + u;
 		for (uint32_t i = 0; i < cu->numFuncs; i++) {
 			if (strcmp(cu->funcs[i].name, name) == 0) {
-				return cu->funcs + i;
+				return &cu->funcs[i];
 			}
 		}
 	}
@@ -42,7 +42,7 @@ TcdLine *tcdNearestLine(TcdFunction *func, uint64_t address) {
 	for (uint32_t i = 0; i < func->numLines; i++) {
 		if (func->lines[i].address > address) break;
 		if (line == NULL || func->lines[i].address > line->address) {
-			line = func->lines + i;
+			line = &func->lines[i];
 		}
 	}
 	return line;

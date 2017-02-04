@@ -27,7 +27,7 @@ static int64_t decodeSignedLeb128(uint8_t **data) {
 		result |= (byte & 0x7F) << shift;
 		shift += 7;
 	} while (byte & 0x80);
-	// Sign extend negative numbers.
+	/* Sign extend negative numbers. */
 	if (byte & 0x40)
 		result |= (-1ULL) << shift;
 	return result;
@@ -91,6 +91,7 @@ int tcdInterpretLocation(TcdContext *debug, TcdLocDesc desc, TcdRtLoc *rtloc) {
 		int64_t first, second;
 		switch (op) {
 			case DW_OP_nop: break;
+			
 			case DW_OP_lit0:  case DW_OP_lit1:  case DW_OP_lit2:  case DW_OP_lit3:
 			case DW_OP_lit4:  case DW_OP_lit5:  case DW_OP_lit6:  case DW_OP_lit7:
 			case DW_OP_lit8:  case DW_OP_lit9:  case DW_OP_lit10: case DW_OP_lit11:

@@ -64,8 +64,8 @@ static int parseSuffix(TcdContext *debug, const char **str, TcdType **type, TcdR
 			if (**str != ']') return -1;
 			(*str)++;
 			if (itype->tclass != TCDT_BASE) return -1;
-			if (itype->as.base.inter != TCDI_SIGNED &&
-				itype->as.base.inter != TCDI_UNSIGNED) return -1;
+			if (itype->as.base.interp != TCDI_SIGNED &&
+				itype->as.base.interp != TCDI_UNSIGNED) return -1;
 			int64_t index = 0; /* Sign bit */
 			tcdReadRtLoc(debug, irtloc, itype->size, &index);
 			if (tcdDerefIndex(debug, atype, artloc, index, type, rtloc) != 0) return -1;
@@ -104,7 +104,7 @@ static int parseNumber(const char **str, TcdType **type, TcdRtLoc *rtloc) {
 		(*type)->tclass = TCDT_BASE;
 		(*type)->size = 8;
 		(*type)->as.base.name = strdup("double");
-		(*type)->as.base.inter = TCDI_FLOAT;
+		(*type)->as.base.interp = TCDI_FLOAT;
 		rtloc->region = TCDR_HOST_TEMP;
 		rtloc->address = *(uint64_t*)&ret;
 	} else {
@@ -112,7 +112,7 @@ static int parseNumber(const char **str, TcdType **type, TcdRtLoc *rtloc) {
 		(*type)->tclass = TCDT_BASE;
 		(*type)->size = 8;
 		(*type)->as.base.name = strdup("long long");
-		(*type)->as.base.inter = TCDI_SIGNED;
+		(*type)->as.base.interp = TCDI_SIGNED;
 		rtloc->region = TCDR_HOST_TEMP;
 		rtloc->address = *(uint64_t*)&num;
 	}

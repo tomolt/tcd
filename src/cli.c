@@ -189,38 +189,6 @@ int main(int argc, char **argv) {
 				uint64_t address = 0;
 				uint32_t line = 0;
 				char symbol[256];
-#if 0
-				uint32_t number;
-				char *colon = strchr(arg, ':');
-				if (colon != NULL) {
-					function_t *func = function_by_name(&data, symbol);
-					if (func != NULL) {
-						uint32_t offset = func->lines[0].number;
-						line_t *mline = nearest_line(func, number + offset);
-						address = mline->address;
-						line = mline->number;
-					} else {
-						printf("Couldn't find function '%s'.\n", symbol);
-					}
-				} else if (sscanf(arg, "%d", &number) == 1) {
-					for (uint32_t i = 0; i < data.numFuncs; i++) {
-						uint32_t beg = data.funcs[i].lines[0].number;
-						uint32_t end = data.funcs[i].lines[data.funcs[i].numLines - 1].number;
-						if (number >= beg && number <= end) {
-							for (uint32_t i = 0; i < data.funcs[i].numLines; i++) {
-								if (number == data.funcs[i].lines[i].number) {
-									address = data.funcs[i].lines[i].address;
-									line = number;
-								}
-							}
-							break;
-						}
-					}
-					if (address == 0) {
-						printf("Couldn't find line '%d'.\n", number);
-					}
-				} else
-#endif
 				if (sscanf(arg1, "%s", symbol) == 1) {
 					TcdFunction *func = tcdFunctionByName(&debug.info, symbol);
 					if (func != NULL) {
@@ -233,18 +201,7 @@ int main(int argc, char **argv) {
 					printf("Couldn't interpret breakpoint location.\n");
 				}
 				if (address != 0) {
-					/* Insert new break point */
-					TcdBreakpoint point;
-					point.address = address;
-					point.line = line;
-					/* Save instruction at eip */
-					tcdReadMemory(&debug, address, 1, &point.saved);
-					/* Insert break point */
-					uint8_t int3 = 0xCC;
-					tcdWriteMemory(&debug, address, 1, &int3);
-					/* Store break point */
-					debug.breaks = realloc(debug.breaks, ++debug.numBreaks * sizeof(*debug.breaks));
-					debug.breaks[debug.numBreaks - 1] = point;
+					tcdInsertBreakpoint(&debug, address, line);
 					printf("Set breakpoint at ");
 					printWhere(&debug.info, address);
 				} else {
@@ -321,7 +278,7 @@ int main(int argc, char **argv) {
 						switch (type->tclass)
 						{
 							case TCDT_BASE:
-								printf("  %s: size=%d inter=%d\n", type->as.base.name, type->size, type->as.base.inter);
+								printf("  %s: size=%d inter=%d\n", type->as.base.name, type->size, type->as.base.interp);
 								break;
 							case TCDT_POINTER:
 								printf("  <pointer>: to=%p\n", (void*)type->as.pointer.to);
@@ -376,7 +333,7 @@ int main(int argc, char **argv) {
 				}
 				switch (type->tclass) {
 					case TCDT_BASE: {
-						switch (type->as.base.inter) {
+						switch (type->as.base.interp) {
 							case TCDI_ADDRESS: break;
 							case TCDI_SIGNED: {
 								int64_t data;
@@ -423,8 +380,8 @@ int main(int argc, char **argv) {
 						tcdReadRtLoc(&debug, rtloc, 8, &address);
 						printf("(pointer) 0x%lx", address);
 						if  (type->as.pointer.to->tclass == TCDT_BASE &&
-							(type->as.pointer.to->as.base.inter == TCDI_CHAR ||
-							 type->as.pointer.to->as.base.inter == TCDI_UCHAR)) {
+							(type->as.pointer.to->as.base.interp == TCDI_CHAR ||
+							 type->as.pointer.to->as.base.interp == TCDI_UCHAR)) {
 							char data[256];
 							data[255] = '\0';
 							tcdReadRtLoc(&debug, (TcdRtLoc){address, TCDR_ADDRESS}, 255, data);
@@ -435,8 +392,8 @@ int main(int argc, char **argv) {
 					case TCDT_ARRAY: {
 						printf("(array)");
 						if  (type->as.array.of->tclass == TCDT_BASE &&
-							(type->as.array.of->as.base.inter == TCDI_CHAR ||
-							 type->as.array.of->as.base.inter == TCDI_UCHAR)) {
+							(type->as.array.of->as.base.interp == TCDI_CHAR ||
+							 type->as.array.of->as.base.interp == TCDI_UCHAR)) {
 							char data[256];
 							data[255] = '\0';
 							tcdReadRtLoc(&debug, rtloc, 255, data);

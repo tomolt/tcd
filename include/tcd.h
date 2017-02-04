@@ -1,6 +1,10 @@
 #ifndef TCD_H
 #define TCD_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 
 /* ----- Address ----- */
@@ -29,7 +33,7 @@ enum TcdTypeClass {
 };
 typedef enum TcdTypeClass TcdTypeClass;
 
-enum {
+enum TcdBaseInterp {
 	TCDI_ADDRESS,
 	TCDI_SIGNED,
 	TCDI_UNSIGNED,
@@ -38,6 +42,7 @@ enum {
 	TCDI_FLOAT,
 	TCDI_BOOL
 };
+typedef enum TcdBaseInterp TcdBaseInterp;
 
 struct TcdType {
 	TcdTypeClass tclass;
@@ -45,7 +50,7 @@ struct TcdType {
 	union {
 		struct {
 			char *name;
-			uint8_t inter;
+			TcdBaseInterp interp;
 		} base;
 		struct {
 			struct TcdType *to;
@@ -59,31 +64,6 @@ struct TcdType {
 	} as;
 };
 typedef struct TcdType TcdType;
-
-#if 0
-union TcdType {
-	TcdTypeClass tclass;
-	struct {
-		TcdTypeClass tclass;
-		char *name;
-		uint8_t size;
-		uint8_t inter;
-	} base;
-	struct {
-		TcdTypeClass tclass;
-		union TcdType *to;
-	} pointer;
-	struct {
-		TcdTypeClass tclass;
-		union TcdType *of;
-	} array;
-	struct {
-		TcdTypeClass tclass;
-		char *name;
-	} struc;
-};
-typedef union TcdType TcdType;
-#endif
 
 /* ----- Info ----- */
 
@@ -176,6 +156,8 @@ uint64_t tcdNext(TcdContext*);
 
 uint16_t tcdGetStackTrace(TcdContext*, uint64_t*, uint16_t);
 
+void tcdInsertBreakpoint(TcdContext*, uint64_t, uint32_t);
+
 /* ----- Address Functions ----- */
 
 int tcdInterpretLocation(TcdContext*, TcdLocDesc, TcdRtLoc*);
@@ -185,5 +167,9 @@ int tcdDerefIndex(TcdContext*, TcdType*, TcdRtLoc, uint64_t, TcdType**, TcdRtLoc
 
 void cexprFreeType(TcdType*);
 int cexprParse(TcdContext*, const char*, TcdType**, TcdRtLoc*);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

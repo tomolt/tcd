@@ -19,7 +19,7 @@ all: $(NAME)
 
 $(NAME): $(FULLOBJS)
 	$(LD) $(CFLAGS) $(FULLOBJS) -o $(NAME) $(LIBS)
-	echo "$(NAME) is" `du -h $(NAME) | cut -f1` "in size"
+	@echo "$(NAME) is" `du -h $(NAME) | cut -f1` "in size"
 
 $(OBJDIR):
 	mkdir -p $(OBJDIR)
