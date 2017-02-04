@@ -120,12 +120,12 @@ uint64_t tcdNext(TcdContext *debug) {
 	return ip;
 }
 
-uint16_t tcdGetStackTrace(TcdContext *debug, uint64_t *trace, uint16_t max) {
+uint16_t tcdGetStackTrace(TcdContext *debug, uint64_t *trace, int max) {
 	TcdFunction *fmain = tcdFunctionByName(&debug->info, "main");
 	if (fmain == NULL) return 0;
 	uint64_t address   = tcdReadIP(debug);
 	uint64_t framebase = tcdReadBP(debug);
-	uint16_t level = 0;
+	int level = 0;
 	while (level < max) {
 		trace[level] = address;
 		level++;

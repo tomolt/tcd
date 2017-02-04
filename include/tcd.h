@@ -7,6 +7,22 @@ extern "C" {
 
 #include <stdint.h>
 
+/* ----- Error Codes ----- */
+
+enum TcdErrorCode {
+	TCDE_OK,
+	TCDE_LOAD_OPEN,
+	TCDE_LOAD_INFO,
+	TCDE_LOAD_COMP_UNIT,
+	TCDE_LOAD_LINES,
+	TCDE_LOAD_FUNCTION,
+	TCDE_LOAD_LOCAL,
+	TCDE_LOAD_TYPE
+};
+typedef enum TcdErrorCode TcdErrorCode;
+
+const char *tcdFormulateErrorMessage(int code);
+
 /* ----- Address ----- */
 
 struct TcdLocDesc {
@@ -154,7 +170,7 @@ void tcdStepInstruction(TcdContext*);
 uint64_t tcdStep(TcdContext*);
 uint64_t tcdNext(TcdContext*);
 
-uint16_t tcdGetStackTrace(TcdContext*, uint64_t*, uint16_t);
+uint16_t tcdGetStackTrace(TcdContext*, uint64_t*, int);
 
 void tcdInsertBreakpoint(TcdContext*, uint64_t, uint32_t);
 

@@ -126,7 +126,9 @@ int main(int argc, char **argv) {
 
 	/* Init debug context */
 	TcdContext debug = {0};
-	if (tcdLoadInfo(path, &debug.info) != 0) {
+	int res = tcdLoadInfo(path, &debug.info);
+	if (res != TCDE_OK) {
+		fprintf(stderr, "FATAL: %s\n", tcdFormulateErrorMessage(res));
 		return -1;
 	}
 
